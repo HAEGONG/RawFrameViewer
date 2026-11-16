@@ -1,0 +1,11 @@
+<Project>
+  <!-- 모든 프로젝트에 공통으로 적용되는 빌드 설정 -->
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- 경고를 오류로 취급해 잠재적 결함을 빌드 단계에서 막는다 -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+  </PropertyGroup>
+</Project>

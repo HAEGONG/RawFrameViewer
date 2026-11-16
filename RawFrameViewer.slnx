@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/RawFrameViewer.Core/RawFrameViewer.Core.csproj" />
+    <Project Path="src/RawFrameViewer.Simulator/RawFrameViewer.Simulator.csproj" />
+    <Project Path="src/RawFrameViewer.Viewer/RawFrameViewer.Viewer.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/RawFrameViewer.Core.Tests/RawFrameViewer.Core.Tests.csproj" />
+  </Folder>
+</Solution>
