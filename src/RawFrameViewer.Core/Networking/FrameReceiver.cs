@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Sockets;
 using RawFrameViewer.Core.Protocol;
 using RawFrameViewer.Core.Validation;
@@ -40,7 +41,11 @@ public sealed class FrameReceiver : IAsyncDisposable
     public FrameReceiver(string host, int port, ReceiverOptions? options = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(host);
+
+        // 범위를 벗어난 포트는 연결 시도 중에 SocketException이 아닌 다른 예외를 내서 수신 루프가 조용히 멈춘다.
+        // 생성 시점에 막는다. (docs/ai-log.md #7)
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(port);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(port, IPEndPoint.MaxPort);
         _host = host;
         _port = port;
         _options = options ?? new ReceiverOptions();

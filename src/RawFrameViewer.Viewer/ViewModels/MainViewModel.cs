@@ -65,7 +65,19 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ConnectionStateText))]
+    [NotifyPropertyChangedFor(nameof(IsShowingStaleImage))]
+    [NotifyPropertyChangedFor(nameof(StaleImageText))]
     private ConnectionState _connectionState = ConnectionState.Stopped;
+
+    /// <summary>
+    /// 연결이 끊긴 상태에서 마지막 영상이 화면에 남아 있는지.
+    /// 멈춘 영상을 실시간 영상으로 착각하지 않도록 화면에 경고를 띄우는 데 쓴다. (docs/risks.md H2)
+    /// </summary>
+    public bool IsShowingStaleImage => Image is not null && ConnectionState != ConnectionState.Connected;
+
+    public string StaleImageText => _currentFrame is null
+        ? string.Empty
+        : $"⚠ 수신 중단 · 마지막 영상 #{_currentFrame.FrameId} ({DateTimeOffset.FromUnixTimeMilliseconds(_currentFrame.TimestampUs / 1000).LocalDateTime:HH:mm:ss}) 표시 중";
 
     public string ConnectButtonText => IsRunning ? "연결 끊기" : "연결";
 
@@ -81,6 +93,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     // ── 영상과 Window/Level ─────────────────────────────
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsShowingStaleImage))]
     private ImageSource? _image;
 
     [ObservableProperty]
@@ -343,7 +356,14 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     private void StartReceiver()
     {
-        var receiver = new FrameReceiver(Host, Port);
+        // 사용자 입력은 수신기를 만들기 전에 검사해 화면 로그로 알린다. (예외로 앱이 멈추지 않게)
+        if (string.IsNullOrWhiteSpace(Host) || Port is < 1 or > 65535)
+        {
+            AddLog(new LogEntry(DateTime.Now.ToString("HH:mm:ss.fff", System.Globalization.CultureInfo.InvariantCulture), ReceiverEventLevel.Error, "InvalidInput", $"호스트 또는 포트가 올바르지 않습니다. (호스트: '{Host}', 포트: {Port}, 허용 1~65535)"));
+            return;
+        }
+
+        var receiver = new FrameReceiver(Host.Trim(), Port);
         receiver.FrameReceived += OnFrameReceived;
         receiver.StateChanged += state => _dispatcher.InvokeAsync(() => ConnectionState = state);
         receiver.EventRaised += e => _dispatcher.InvokeAsync(() => AddLog(LogEntry.From(e)));

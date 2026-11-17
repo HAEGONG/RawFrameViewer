@@ -116,6 +116,24 @@ public sealed class FrameReceiverTests : IDisposable
         Assert.NotEqual(ConnectionState.Connected, receiver.State);
     }
 
+    [Theory(DisplayName = "포트가 1~65535를 벗어나면 생성 시점에 거부한다")]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(65536)]
+    [InlineData(70000)]
+    public void InvalidPort_Throws(int port)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new FrameReceiver("127.0.0.1", port));
+    }
+
+    [Theory(DisplayName = "호스트가 비어 있으면 생성 시점에 거부한다")]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void EmptyHost_Throws(string host)
+    {
+        Assert.ThrowsAny<ArgumentException>(() => new FrameReceiver(host, 5000));
+    }
+
     [Fact(DisplayName = "Stop하면 Stopped 상태가 된다")]
     public async Task Stop_SetsStopped()
     {

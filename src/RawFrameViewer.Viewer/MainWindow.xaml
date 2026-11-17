@@ -106,6 +106,21 @@
                             <Rectangle x:Name="RoiRectangle" Stroke="#40C0FF" Visibility="Collapsed" IsHitTestVisible="False" />
                         </Canvas>
                     </Canvas>
+                    <!-- 연결이 끊긴 채 마지막 영상이 남아 있으면 실시간 영상이 아님을 분명히 표시한다. -->
+                    <Border VerticalAlignment="Top" HorizontalAlignment="Stretch" Background="#CCB00020" Padding="10,6"
+                            IsHitTestVisible="False">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsShowingStaleImage}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <TextBlock Text="{Binding StaleImageText}" Foreground="White" FontSize="15" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                    </Border>
                     <TextBlock HorizontalAlignment="Center" Foreground="#777777" FontSize="15"
                                Text="'연결'을 눌러 시뮬레이터(127.0.0.1:5000)에 접속하세요">
                         <TextBlock.Style>
