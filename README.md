@@ -2,6 +2,8 @@
 
 16-bit 검출기 영상을 TCP로 받아 표시하는 Windows 뷰어와, 실제 장비 대신 영상을 보내는 가상 검출기 시뮬레이터입니다.
 
+![뷰어 화면: 시뮬레이터 연결이 끊겼다가 자동 재연결된 상태](docs/images/viewer.png)
+
 > ⚠️ **임상용이 아닙니다.** 이 프로젝트는 영상 뷰어 엔지니어링, 장비 통신, 검증 과정을 보여주기 위한 개인 포트폴리오입니다. 진단이나 의료 목적으로 사용할 수 없습니다.
 
 ## 구성
@@ -31,8 +33,19 @@
 dotnet build
 dotnet test
 
-# 시뮬레이터 실행 (기본: 127.0.0.1:5000, 2048×2048, 14-bit, 10 fps)
-dotnet run --project src/RawFrameViewer.Simulator -- --fps 10
+# 1) 시뮬레이터 실행 (기본: 127.0.0.1:5000, 2048×2048, 14-bit, 10 fps)
+dotnet run --project src/RawFrameViewer.Simulator -c Release -- --fps 10
+
+# 2) 다른 터미널에서 뷰어 실행 (--connect: 바로 접속)
+dotnet run --project src/RawFrameViewer.Viewer -c Release -- --connect
 ```
 
-뷰어는 작성 중입니다.
+### 뷰어 조작
+
+| 조작 | 동작 |
+|---|---|
+| 마우스 휠 | 커서 위치 기준 확대/축소 |
+| 왼쪽 드래그 | 이동 |
+| 오른쪽 드래그 | Window/Level 조절 (가로: Window, 세로: Level) |
+| 더블클릭 | 화면 맞춤 |
+| 자동 W/L | 현재 영상의 최솟값~최댓값이 보이도록 설정 |

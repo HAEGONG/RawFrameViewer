@@ -1,9 +1,9 @@
 ﻿<Application x:Class="RawFrameViewer.Viewer.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:RawFrameViewer.Viewer"
+             xmlns:conv="clr-namespace:RawFrameViewer.Viewer.Converters"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
-         
+        <conv:InverseBooleanConverter x:Key="InverseBool" />
     </Application.Resources>
 </Application>

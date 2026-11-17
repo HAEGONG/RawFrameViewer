@@ -70,6 +70,20 @@ public class WindowLevelTests
         Assert.Equal(255, lut[5000]);
     }
 
+    [Fact(DisplayName = "MinMax는 최솟값과 최댓값을 찾는다")]
+    public void MinMax_FindsExtremes()
+    {
+        ushort[] pixels = [500, 12, 16000, 7];
+
+        Assert.Equal(((ushort)7, (ushort)16000), PixelStatistics.MinMax(pixels));
+    }
+
+    [Fact(DisplayName = "MinMax는 빈 입력을 거부한다")]
+    public void MinMax_Empty_Throws()
+    {
+        Assert.Throws<ArgumentException>(() => PixelStatistics.MinMax([]));
+    }
+
     [Fact(DisplayName = "Apply는 LUT로 픽셀을 변환한다")]
     public void Apply_UsesLut()
     {
