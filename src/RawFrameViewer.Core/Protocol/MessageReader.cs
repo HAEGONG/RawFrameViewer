@@ -30,6 +30,7 @@ public sealed class MessageReader
     private readonly Stream _stream;
     private readonly long _maxResyncBytes;
     private readonly byte[] _header = new byte[ProtocolConstants.HeaderSize];
+    private byte[] _body = [];
 
     public MessageReader(Stream stream, long maxResyncBytes = DefaultMaxResyncBytes)
     {
@@ -92,10 +93,18 @@ public sealed class MessageReader
             await _stream.ReadExactlyAsync(_header.AsMemory(ProtocolConstants.HeaderSize - shift, shift), cancellationToken).ConfigureAwait(false);
         }
 
-        // ⑥ 페이로드와 페이로드 CRC 읽기
+        // ⑥ 페이로드와 페이로드 CRC 읽기.
+        // 수신 버퍼는 재사용한다. 프레임마다 새로 만들면 3072×3072에서 18MB씩 버려져 메모리 사용량이 크게 늘었다.
+        // (픽셀 배열은 화면으로 넘어가므로 프레임마다 새로 만든다.)
         int payloadLength = (int)header.PayloadLength;
-        byte[] body = new byte[payloadLength + ProtocolConstants.PayloadCrcSize];
-        await _stream.ReadExactlyAsync(body, cancellationToken).ConfigureAwait(false);
+        int bodyLength = payloadLength + ProtocolConstants.PayloadCrcSize;
+        if (_body.Length < bodyLength)
+        {
+            _body = new byte[bodyLength];
+        }
+
+        byte[] body = _body;
+        await _stream.ReadExactlyAsync(body.AsMemory(0, bodyLength), cancellationToken).ConfigureAwait(false);
 
         // ⑦ 페이로드 CRC 확인. 틀리면 이 메시지만 버린다. 헤더가 정상이므로 경계는 유지된다.
         ReadOnlySpan<byte> payload = body.AsSpan(0, payloadLength);

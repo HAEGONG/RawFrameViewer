@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -118,7 +119,45 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [ObservableProperty]
     private double _renderMs;
 
+    [ObservableProperty]
+    private double _allocationMBps;
+
+    [ObservableProperty]
+    private double _gen2PerSecond;
+
+    [ObservableProperty]
+    private double _managedHeapMB;
+
+    private long _lastAllocatedBytes = GC.GetTotalAllocatedBytes();
+    private int _lastGen2Count = GC.CollectionCount(2);
+
     public ObservableCollection<LogEntry> Log { get; } = [];
+
+    // ── 측정 ─────────────────────────────────────────────
+
+    [ObservableProperty]
+    private string _measurementText = "-";
+
+    [ObservableProperty]
+    private string _roiText = "-";
+
+    private PixelRect? _roi;
+    private RawFrame? _histogramFrame;
+
+    // ── 히스토그램 (256×100 좌표계, 화면에서 Viewbox로 늘림) ──
+
+    public const int HistogramBins = 256;
+    public const double HistogramHeight = 100;
+
+    [ObservableProperty]
+    private Geometry? _histogramGeometry;
+
+    /// <summary>현재 Window 범위의 왼쪽·오른쪽 끝이 히스토그램에서 놓이는 x 좌표</summary>
+    [ObservableProperty]
+    private double _windowLowerX;
+
+    [ObservableProperty]
+    private double _windowUpperX = HistogramBins;
 
     // ── 명령 ─────────────────────────────────────────────
 
@@ -168,6 +207,88 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         CursorInfo = $"X {px}, Y {py} : {frame.Pixels[(py * frame.Width) + px]}";
     }
 
+    /// <summary>두 점 사이 거리를 픽셀 단위로 표시한다. 픽셀 간격(mm) 정보가 없으므로 실제 길이로 바꾸지 않는다.</summary>
+    public void SetMeasurement(Point start, Point end)
+    {
+        Vector delta = end - start;
+        MeasurementText = $"{delta.Length:F1} px  (Δx {delta.X:F0}, Δy {delta.Y:F0})";
+    }
+
+    /// <summary>ROI를 지정한다. 새 프레임이 올 때마다 통계를 다시 계산한다.</summary>
+    public void SetRoi(PixelRect? roi)
+    {
+        _roi = roi;
+        UpdateRoiStatistics();
+    }
+
+    [RelayCommand]
+    private void ClearMeasurements()
+    {
+        MeasurementText = "-";
+        SetRoi(null);
+        MeasurementsCleared?.Invoke();
+    }
+
+    /// <summary>화면의 측정 도형도 지우도록 View에 알린다.</summary>
+    public event Action? MeasurementsCleared;
+
+    private void UpdateRoiStatistics()
+    {
+        if (_roi is not { } roi || _currentFrame is null || RoiStatistics.Compute(_currentFrame, roi) is not { } stats)
+        {
+            RoiText = "-";
+            return;
+        }
+
+        RoiText = $"영역 {stats.Area.Width}×{stats.Area.Height} ({stats.Count:N0} px)\n"
+                + $"평균 {stats.Mean:N1}   표준편차 {stats.StdDev:N1}\n"
+                + $"최소 {stats.Min:N0}   최대 {stats.Max:N0}";
+    }
+
+    private void UpdateHistogram()
+    {
+        RawFrame? frame = _currentFrame;
+        if (frame is null || ReferenceEquals(frame, _histogramFrame))
+        {
+            return; // 새 프레임이 없으면 다시 계산하지 않는다
+        }
+
+        _histogramFrame = frame;
+        Histogram histogram = Histogram.Compute(frame.Pixels, frame.MaxValue, HistogramBins);
+
+        // 배경 같은 큰 구간이 나머지를 눌러 버리지 않도록 높이는 제곱근 비율로 그린다.
+        double peak = 0;
+        foreach (int count in histogram.Bins)
+        {
+            peak = Math.Max(peak, Math.Sqrt(count));
+        }
+
+        var geometry = new StreamGeometry();
+        using (StreamGeometryContext context = geometry.Open())
+        {
+            context.BeginFigure(new Point(0, HistogramHeight), isFilled: true, isClosed: true);
+            for (int i = 0; i < histogram.BinCount; i++)
+            {
+                double y = HistogramHeight - (peak > 0 ? Math.Sqrt(histogram.Bins[i]) / peak * HistogramHeight : 0);
+                context.LineTo(new Point(i, y), isStroked: true, isSmoothJoin: false);
+                context.LineTo(new Point(i + 1, y), isStroked: true, isSmoothJoin: false);
+            }
+
+            context.LineTo(new Point(HistogramBins, HistogramHeight), isStroked: true, isSmoothJoin: false);
+        }
+
+        geometry.Freeze();
+        HistogramGeometry = geometry;
+        UpdateWindowMarkers();
+    }
+
+    private void UpdateWindowMarkers()
+    {
+        double scale = HistogramBins / (MaxPixelValue + 1);
+        WindowLowerX = Math.Clamp((WindowCenter - (WindowWidth / 2)) * scale, 0, HistogramBins);
+        WindowUpperX = Math.Clamp((WindowCenter + (WindowWidth / 2)) * scale, 0, HistogramBins);
+    }
+
     public async ValueTask DisposeAsync()
     {
         _statisticsTimer.Stop();
@@ -207,6 +328,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         }
 
         _lut = new WindowLevel(WindowCenter, WindowWidth).BuildLut(Invert);
+        UpdateWindowMarkers();
         RenderCurrentFrame();
     }
 
@@ -291,6 +413,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
 
         _framesDisplayed++;
         FrameInfo = $"#{frame.FrameId}  {frame.Width}×{frame.Height}  {frame.BitsStored}-bit";
+        UpdateRoiStatistics();
     }
 
     private void RenderCurrentFrame()
@@ -328,6 +451,19 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
 
         DisplayFps = seconds > 0 ? (_framesDisplayed - _lastFramesDisplayed) / seconds : 0;
         _lastFramesDisplayed = _framesDisplayed;
+
+        // 메모리: 작업 집합(Working Set)은 GC가 메모리를 얼마나 붙잡아 두는지에 따라 흔들리므로,
+        // 코드가 실제로 얼마나 할당하는지(할당 속도)와 Gen2 GC 횟수를 함께 본다.
+        long allocated = GC.GetTotalAllocatedBytes();
+        int gen2 = GC.CollectionCount(2);
+        AllocationMBps = seconds > 0 ? (allocated - _lastAllocatedBytes) / 1024.0 / 1024.0 / seconds : 0;
+        Gen2PerSecond = seconds > 0 ? (gen2 - _lastGen2Count) / seconds : 0;
+        ManagedHeapMB = GC.GetGCMemoryInfo().HeapSizeBytes / 1024.0 / 1024.0;
+        _lastAllocatedBytes = allocated;
+        _lastGen2Count = gen2;
+
+        // 히스토그램은 프레임마다가 아니라 통계 주기(0.5초)마다 갱신한다.
+        UpdateHistogram();
     }
 
     private void AddLog(LogEntry entry)

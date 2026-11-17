@@ -6,7 +6,7 @@
         xmlns:vm="clr-namespace:RawFrameViewer.Viewer.ViewModels"
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
-        Title="RawFrameViewer (임상용 아님)" Height="860" Width="1400"
+        Title="RawFrameViewer (임상용 아님)" Height="940" Width="1440" WindowStartupLocation="CenterScreen"
         Background="#1E1E1E" Foreground="#DDDDDD" FontSize="13">
 
     <Window.Resources>
@@ -54,10 +54,10 @@
                 <Separator Margin="8,0" Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" />
 
                 <TextBlock Text="Level" Margin="0,0,4,0" />
-                <Slider Width="160" Minimum="0" Maximum="{Binding MaxPixelValue}" Value="{Binding WindowCenter}" VerticalAlignment="Center" />
+                <Slider Width="120" Minimum="0" Maximum="{Binding MaxPixelValue}" Value="{Binding WindowCenter}" VerticalAlignment="Center" />
                 <TextBox Text="{Binding WindowCenter, StringFormat=F0}" Width="55" Margin="4,0" />
                 <TextBlock Text="Window" Margin="8,0,4,0" />
-                <Slider Width="160" Minimum="1" Maximum="{Binding MaxWindowWidth}" Value="{Binding WindowWidth}" VerticalAlignment="Center" />
+                <Slider Width="120" Minimum="1" Maximum="{Binding MaxWindowWidth}" Value="{Binding WindowWidth}" VerticalAlignment="Center" />
                 <TextBox Text="{Binding WindowWidth, StringFormat=F0}" Width="55" Margin="4,0" />
                 <Button Content="자동 W/L" Command="{Binding AutoWindowLevelCommand}" />
                 <CheckBox Content="반전" IsChecked="{Binding Invert}" Foreground="#DDDDDD" VerticalAlignment="Center" Margin="4,0" />
@@ -66,6 +66,14 @@
 
                 <Button Content="화면 맞춤" Click="FitButton_Click" />
                 <Button Content="1:1" Click="ActualSizeButton_Click" />
+
+                <Separator Margin="8,0" Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" />
+
+                <TextBlock Text="도구" Margin="0,0,6,0" />
+                <RadioButton x:Name="PanToolButton" Content="이동" GroupName="Tool" IsChecked="True" Foreground="#DDDDDD" VerticalAlignment="Center" Margin="2,0" Checked="ToolButton_Checked" />
+                <RadioButton x:Name="MeasureToolButton" Content="거리" GroupName="Tool" Foreground="#DDDDDD" VerticalAlignment="Center" Margin="6,0" Checked="ToolButton_Checked" />
+                <RadioButton x:Name="RoiToolButton" Content="ROI" GroupName="Tool" Foreground="#DDDDDD" VerticalAlignment="Center" Margin="2,0" Checked="ToolButton_Checked" />
+                <Button Content="측정 지우기" Command="{Binding ClearMeasurementsCommand}" />
             </WrapPanel>
         </Border>
 
@@ -78,23 +86,25 @@
             <!-- 영상 영역. 확대·이동은 화면만의 상태이므로 코드 비하인드에서 처리한다. -->
             <Border x:Name="Viewport" Grid.Column="0" Background="#101010" ClipToBounds="True" Cursor="Cross"
                     MouseWheel="Viewport_MouseWheel"
-                    MouseLeftButtonDown="Viewport_MouseLeftButtonDown"
-                    MouseRightButtonDown="Viewport_MouseRightButtonDown"
+                    MouseDown="Viewport_MouseDown"
                     MouseMove="Viewport_MouseMove"
-                    MouseLeftButtonUp="Viewport_MouseButtonUp"
-                    MouseRightButtonUp="Viewport_MouseButtonUp"
+                    MouseUp="Viewport_MouseUp"
                     MouseLeave="Viewport_MouseLeave"
                     SizeChanged="Viewport_SizeChanged">
                 <Grid>
                     <Canvas>
-                        <Image x:Name="FrameImage" Source="{Binding Image}" Stretch="None" RenderTransformOrigin="0,0">
-                            <Image.RenderTransform>
+                        <!-- 영상과 측정 도형을 같은 좌표계(영상 픽셀)에 두고 함께 확대·이동한다. -->
+                        <Canvas x:Name="ImageLayer" RenderTransformOrigin="0,0">
+                            <Canvas.RenderTransform>
                                 <TransformGroup>
                                     <ScaleTransform x:Name="ImageScale" />
                                     <TranslateTransform x:Name="ImageTranslate" />
                                 </TransformGroup>
-                            </Image.RenderTransform>
-                        </Image>
+                            </Canvas.RenderTransform>
+                            <Image x:Name="FrameImage" Source="{Binding Image}" Stretch="None" />
+                            <Line x:Name="MeasureLine" Stroke="#FFD700" Visibility="Collapsed" IsHitTestVisible="False" />
+                            <Rectangle x:Name="RoiRectangle" Stroke="#40C0FF" Visibility="Collapsed" IsHitTestVisible="False" />
+                        </Canvas>
                     </Canvas>
                     <TextBlock HorizontalAlignment="Center" Foreground="#777777" FontSize="15"
                                Text="'연결'을 눌러 시뮬레이터(127.0.0.1:5000)에 접속하세요">
@@ -148,6 +158,7 @@
                         <Grid.RowDefinitions>
                             <RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition />
                             <RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition />
+                            <RowDefinition />
                         </Grid.RowDefinitions>
 
                         <TextBlock Grid.Row="0" Style="{StaticResource StatLabel}" Text="수신 / 표시 FPS" />
@@ -184,7 +195,43 @@
                         <TextBlock Grid.Row="8" Grid.Column="1" Style="{StaticResource StatValue}" Text="{Binding Statistics.Timeouts, FallbackValue=0}" />
                         <TextBlock Grid.Row="9" Style="{StaticResource StatLabel}" Text="재연결" />
                         <TextBlock Grid.Row="9" Grid.Column="1" Style="{StaticResource StatValue}" Text="{Binding Statistics.Reconnects, FallbackValue=0}" />
+                        <TextBlock Grid.Row="10" Style="{StaticResource StatLabel}" Text="할당 MB/s · Gen2/s · 힙 MB" />
+                        <TextBlock Grid.Row="10" Grid.Column="1" Style="{StaticResource StatValue}">
+                            <TextBlock.Text>
+                                <MultiBinding StringFormat="{}{0:F0} · {1:F1} · {2:F0}">
+                                    <Binding Path="AllocationMBps" />
+                                    <Binding Path="Gen2PerSecond" />
+                                    <Binding Path="ManagedHeapMB" />
+                                </MultiBinding>
+                            </TextBlock.Text>
+                        </TextBlock>
                     </Grid>
+                </GroupBox>
+
+                <GroupBox Header="측정" DockPanel.Dock="Top">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource StatLabel}" Text="거리" />
+                        <TextBlock Text="{Binding MeasurementText}" FontFamily="Consolas" Foreground="#FFD700" />
+                        <TextBlock Style="{StaticResource StatLabel}" Text="ROI" Margin="0,6,0,2" />
+                        <TextBlock Text="{Binding RoiText}" FontFamily="Consolas" Foreground="#40C0FF" />
+                    </StackPanel>
+                </GroupBox>
+
+                <GroupBox Header="히스토그램 (전체 영상, √ 스케일)" DockPanel.Dock="Top">
+                    <StackPanel>
+                        <Viewbox Stretch="Fill" Height="80">
+                            <Canvas Width="256" Height="100" Background="#151515" ClipToBounds="True">
+                                <Path Data="{Binding HistogramGeometry}" Fill="#8899AA" />
+                                <Line X1="{Binding WindowLowerX}" X2="{Binding WindowLowerX}" Y1="0" Y2="100" Stroke="#FFA040" StrokeThickness="1.5" />
+                                <Line X1="{Binding WindowUpperX}" X2="{Binding WindowUpperX}" Y1="0" Y2="100" Stroke="#FFA040" StrokeThickness="1.5" />
+                            </Canvas>
+                        </Viewbox>
+                        <DockPanel Margin="0,2,0,0">
+                            <TextBlock Text="0" FontSize="11" Foreground="#888888" />
+                            <TextBlock Text="{Binding MaxPixelValue, StringFormat=N0}" FontSize="11" Foreground="#888888" DockPanel.Dock="Right" />
+                            <TextBlock Text="주황선 = 현재 Window 범위" FontSize="11" Foreground="#FFA040" HorizontalAlignment="Center" />
+                        </DockPanel>
+                    </StackPanel>
                 </GroupBox>
 
                 <GroupBox Header="이벤트 로그">
@@ -224,7 +271,7 @@
         <Border Grid.Row="2" Background="#007ACC" Padding="8,3">
             <DockPanel>
                 <TextBlock DockPanel.Dock="Right" Foreground="White"
-                           Text="휠: 확대/축소 · 왼쪽 드래그: 이동 · 오른쪽 드래그: W/L · 더블클릭: 화면 맞춤" />
+                           Text="휠: 확대/축소 · 왼쪽: 선택한 도구 · 가운데: 이동 · 오른쪽: W/L · 더블클릭: 화면 맞춤" />
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Foreground="White" Text="{Binding FrameInfo}" MinWidth="220" />
                     <TextBlock x:Name="ZoomText" Foreground="White" MinWidth="90" />

@@ -62,7 +62,7 @@ public sealed class FrameReceiverTests : IDisposable
 
         ReceiverStatistics stats = receiver.GetStatistics();
         Assert.Equal([1u, 3u, 5u], _frames.Select(f => f.FrameId));
-        Assert.Equal(2, stats.FramesMissed);       // 2와 4 (4는 CRC 오류로 버렸으므로 5를 받을 때 누락으로 셈)
+        Assert.Equal(1, stats.FramesMissed);       // 2만 누락. 4는 도착했지만 깨진 것이므로 CRC 오류로만 센다
         Assert.Equal(1, stats.PayloadCrcErrors);
         Assert.Equal(1, stats.DuplicateFrames);
     }

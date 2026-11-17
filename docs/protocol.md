@@ -148,6 +148,13 @@ Magic이나 HeaderCrc가 맞지 않으면 수신 측이 메시지 경계를 잃�
 
 Heartbeat의 FrameId가 마지막으로 받은 FrameId보다 크면 그 사이 프레임이 누락된 것으로 기록합니다.
 
+페이로드 CRC 오류로 버린 프레임도 헤더(FrameId)는 정상이므로 "도착한 번호"로 반영합니다. 그 프레임은 `PayloadCrcError`로만 세고 `FramesMissed`로는 세지 않습니다. 한 번의 오류가 두 통계에 중복으로 잡히지 않게 하기 위해서입니다.
+
+| 통계 | 의미 |
+|---|---|
+| `FramesMissed` | 도착하지 않은 프레임 (번호가 건너뜀) |
+| `PayloadCrcError` | 도착했지만 영상이 깨져 버린 프레임 |
+
 ### 6.4 픽셀 범위 검사
 
 - `2^BitsStored − 1`보다 큰 픽셀이 있으면 `PixelOutOfRange` 경고와 해당 픽셀 수를 기록합니다.
@@ -169,7 +176,7 @@ Heartbeat의 FrameId가 마지막으로 받은 FrameId보다 크면 그 사이 �
 |---|---|---|---|---|
 | F1 | 프레임 누락 | FrameId를 하나 건너뛰고 전송 | 누락 수를 세고 계속 표시 | `FramesMissed` |
 | F2 | 페이로드 손상 | CRC 계산 **후** 페이로드 1바이트 반전 | 해당 프레임 폐기, 이전 영상 유지 | `PayloadCrcError` |
-| F3 | 헤더 손상 | HeaderCrc 계산 **후** 헤더 1바이트 반전 | 재동기화 후 다음 프레임부터 정상 표시 | `SyncLost` |
+| F3 | 헤더 손상 | HeaderCrc 계산 **후** 헤더 1바이트 반전 | 재동기화 후 다음 프레임부터 정상 표시. 깨진 헤더로는 번호를 알 수 없으므로 그 프레임은 누락으로 셈 | `SyncLost`, `FramesMissed` |
 | F4 | 연결 끊김 | 소켓을 갑자기 닫음 | 재연결 시도, 화면에 연결 상태 표시 | `Disconnected` |
 | F5 | 전송 정지 | 3초 넘게 아무것도 보내지 않음 (Heartbeat 포함) | 타임아웃 판단 후 재연결 | `ConnectionTimeout` |
 | F6 | 범위 초과 픽셀 | 일부 픽셀을 `2^BitsStored` 이상으로 설정 | 경고 기록, 표시는 계속 | `PixelOutOfRange` |

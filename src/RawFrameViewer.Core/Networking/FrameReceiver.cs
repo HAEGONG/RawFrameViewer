@@ -250,6 +250,14 @@ public sealed class FrameReceiver : IAsyncDisposable
             case ReceiveKind.PayloadCrcError:
                 Interlocked.Increment(ref _payloadCrcErrors);
                 Raise(ReceiverEventKind.PayloadCrcError, ReceiverEventLevel.Warning, $"Frame #{message.Header.FrameId} 영상 CRC 불일치 → 폐기");
+
+                // 헤더는 정상이므로 이 번호의 프레임이 "도착은 했다"는 것을 안다.
+                // 번호를 반영하지 않으면 다음 프레임에서 같은 프레임이 누락으로 한 번 더 세어진다. §6.3
+                if (message.Header.MessageType == MessageType.Frame)
+                {
+                    ReportMissed(_sequence.OnFrame(message.Header.FrameId).MissedCount, $"Frame #{message.Header.FrameId}");
+                }
+
                 break;
 
             case ReceiveKind.Heartbeat:
